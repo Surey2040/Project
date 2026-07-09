@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import jsQR from 'jsqr';
+import Webcam from 'react-webcam';
 import { CheckCircle2, XCircle, ScanLine, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { submitScan, getSessionPublicInfo } from '../services/api.js';
@@ -17,7 +18,7 @@ function getDeviceId() {
 
 export default function StudentScanPage() {
   const { user, logout } = useAuth();
-  const videoRef = useRef(null);
+  const webcamRef = useRef(null);
   const canvasRef = useRef(document.createElement('canvas'));
   const rafRef = useRef(null);
   const scanningLockRef = useRef(false);
@@ -28,8 +29,6 @@ export default function StudentScanPage() {
 
   const stopScanning = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    const stream = videoRef.current?.srcObject;
-    stream?.getTracks()?.forEach((t) => t.stop());
   }, []);
 
   const handleDecoded = useCallback(
@@ -92,9 +91,12 @@ export default function StudentScanPage() {
   );
 
   const tick = useCallback(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
+    const webcam = webcamRef.current;
+    if (!webcam) return;
+    const video = webcam.video;
+    
     if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+      const canvas = canvasRef.current;
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
@@ -109,28 +111,19 @@ export default function StudentScanPage() {
     rafRef.current = requestAnimationFrame(tick);
   }, [handleDecoded]);
 
-  async function startScanning() {
+  const handleUserMedia = useCallback(() => {
+    rafRef.current = requestAnimationFrame(tick);
+  }, [tick]);
+
+  const handleUserMediaError = useCallback((err) => {
+    setCameraError('Camera access is required to scan the attendance QR.');
+    setStatus('idle');
+  }, []);
+
+  function startScanning() {
     setStatus('scanning');
     setMessage('');
     setCameraError('');
-    try {
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      } catch {
-        // Fallback to any available camera if rear-facing camera constraint is not supported
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      }
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      rafRef.current = requestAnimationFrame(tick);
-    } catch (err) {
-      setCameraError('Camera access is required to scan the attendance QR.');
-      setStatus('idle');
-    }
   }
 
   useEffect(() => stopScanning, [stopScanning]);
@@ -157,14 +150,26 @@ export default function StudentScanPage() {
             <span className="corner corner-tr" />
             <span className="corner corner-bl" />
             <span className="corner corner-br" />
-            <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
-            {status === 'scanning' && (
-              <div className="sweep animate-scanline" style={{ animationDuration: '2.4s' }} />
-            )}
-            {status !== 'scanning' && (
+            
+            {status === 'scanning' ? (
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{ facingMode: 'environment' }}
+                onUserMedia={handleUserMedia}
+                onUserMediaError={handleUserMediaError}
+                className="h-full w-full object-cover animate-[fadeIn_0.5s_ease]"
+                playsInline
+              />
+            ) : (
               <div className="absolute inset-0 flex items-center justify-center bg-ink-950/70">
                 <ScanLine size={36} className="text-slate-600" />
               </div>
+            )}
+
+            {status === 'scanning' && (
+              <div className="sweep animate-scanline" style={{ animationDuration: '2.4s' }} />
             )}
           </div>
 
