@@ -114,13 +114,20 @@ export default function StudentScanPage() {
     setMessage('');
     setCameraError('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      } catch {
+        // Fallback to any available camera if rear-facing camera constraint is not supported
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
       rafRef.current = requestAnimationFrame(tick);
-    } catch {
+    } catch (err) {
       setCameraError('Camera access is required to scan the attendance QR.');
       setStatus('idle');
     }
