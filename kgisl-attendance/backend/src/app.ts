@@ -36,7 +36,28 @@ export function createApp() {
       crossOriginResourcePolicy: { policy: 'same-site' },
     })
   );
-  app.use(cors({ origin: allowedOrigins, credentials: true }));
+  const corsOptions: cors.CorsOptions = {
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+        origin.endsWith('.loca.lt') ||
+        origin.endsWith('.localtunnel.me') ||
+        origin.endsWith('.onrender.com');
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(null, false); // Reject gracefully
+      }
+    },
+    credentials: true,
+  };
+  app.use(cors(corsOptions));
   app.use(express.json({ limit: '32kb' })); // QR/scan payloads are tiny — cap body size
 
   app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));

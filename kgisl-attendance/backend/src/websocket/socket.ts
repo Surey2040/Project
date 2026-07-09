@@ -9,7 +9,28 @@ let io: SocketIOServer | null = null;
 
 export function initWebSocket(httpServer: HttpServer): SocketIOServer {
   io = new SocketIOServer(httpServer, {
-    cors: { origin: allowedOrigins, methods: ['GET', 'POST'], credentials: true },
+    cors: {
+      origin: (origin, callback) => {
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+        const isAllowed =
+          allowedOrigins.includes(origin) ||
+          /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+          origin.endsWith('.loca.lt') ||
+          origin.endsWith('.localtunnel.me') ||
+          origin.endsWith('.onrender.com');
+
+        if (isAllowed) {
+          callback(null, true);
+        } else {
+          callback(null, false); // Reject gracefully
+        }
+      },
+      methods: ['GET', 'POST'],
+      credentials: true,
+    },
   });
 
   // Auth handshake — every socket connection must present a valid JWT.
