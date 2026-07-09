@@ -71,16 +71,16 @@ export default function StudentScanPage() {
         setStatus('error');
         let errorMsg = err.message || 'Could not mark attendance. Try scanning again.';
         if (err.response?.data?.message) {
-           const code = err.response.data.message;
-           if (code.includes('GEOFENCE_REJECTED')) {
-             errorMsg = 'Attendance rejected. You are outside the allowed 150-meter attendance location.';
-           } else if (code.includes('POOR_GPS_ACCURACY')) {
-             errorMsg = 'Location accuracy is too low. Please move to an open area and try again.';
-           } else if (code.includes('INVALID_GPS')) {
-             errorMsg = 'Unable to access your live location. Enable GPS and try again.';
-           } else {
-             errorMsg = code;
-           }
+          const code = err.response.data.message;
+          if (code.includes('GEOFENCE_REJECTED')) {
+            errorMsg = 'Attendance rejected. You are outside the allowed 150-meter attendance location.';
+          } else if (code.includes('POOR_GPS_ACCURACY')) {
+            errorMsg = 'Location accuracy is too low. Please move to an open area and try again.';
+          } else if (code.includes('INVALID_GPS')) {
+            errorMsg = 'Unable to access your live location. Enable GPS and try again.';
+          } else {
+            errorMsg = code;
+          }
         }
         setMessage(errorMsg);
       } finally {
@@ -94,7 +94,7 @@ export default function StudentScanPage() {
     const webcam = webcamRef.current;
     if (!webcam) return;
     const video = webcam.video;
-    
+
     if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
       const canvas = canvasRef.current;
       canvas.width = video.videoWidth;
@@ -150,7 +150,7 @@ export default function StudentScanPage() {
             <span className="corner corner-tr" />
             <span className="corner corner-bl" />
             <span className="corner corner-br" />
-            
+
             {status === 'scanning' ? (
               <Webcam
                 audio={false}
