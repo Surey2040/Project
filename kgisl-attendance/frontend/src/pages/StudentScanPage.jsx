@@ -116,11 +116,39 @@ export default function StudentScanPage() {
   }, [tick]);
 
   const handleUserMediaError = useCallback((err) => {
-    setCameraError('Camera access is required to scan the attendance QR.');
+    console.error('Camera media error:', err);
+    let msg = 'Camera access is required to scan the attendance QR.';
+    if (err) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        msg = 'Camera permission denied. Please click the camera/lock icon in your browser address bar to allow camera access, and refresh the page.';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        msg = 'No camera device found on this device.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        msg = 'Your camera is already being used by another application or tab.';
+      } else {
+        msg = `Camera error (${err.name}): ${err.message || 'Access failed.'}`;
+      }
+    }
+    setCameraError(msg);
     setStatus('idle');
   }, []);
 
   function startScanning() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const isHttp = window.location.protocol === 'http:';
+      const isNotLocalhost = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+      
+      if (isHttp && isNotLocalhost) {
+        setCameraError(
+          `Camera blocked: Browser restricts camera access to secure contexts (HTTPS). ` +
+          `Since you are accessing via IP (${window.location.hostname}), please use HTTPS, tunnel via Ngrok, or test on localhost.`
+        );
+      } else {
+        setCameraError('Camera API is not supported or is blocked by your browser/device settings.');
+      }
+      setStatus('idle');
+      return;
+    }
     setStatus('scanning');
     setMessage('');
     setCameraError('');
