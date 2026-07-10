@@ -9,10 +9,18 @@ import { broadcastAttendanceMarked } from '../websocket/socket';
 
 export interface ScanRequest {
   studentId: string;
+  batchId: string;
+  subjectId: string;
   deviceId: string;
-  batchIdClaimed: string;
-  subjectIdClaimed: string;
-  gps: { lat: number; lng: number };
+  gps: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+  };
+  wifi?: {
+    ssid?: string | null;
+    referenceKey?: string | null;
+  } | null;
   qr: {
     sessionId: string;
     token: string;
@@ -51,27 +59,30 @@ async function claimTokenOnce(sessionId: string, studentId: string, ttlMs: numbe
 }
 
 export async function validateAndRecordScan(req: ScanRequest) {
-  const { studentId, deviceId, gps, qr } = req;
+  const { studentId, batchId, subjectId, deviceId, gps, wifi, qr } = req;
 
-  // ---------------------------------------------------------------
-  // 1. Validate Student
-  // ---------------------------------------------------------------
+  // 1. Validate the request-body structure (Done via controller Zod schema)
+
+  // 2. Read the authenticated student from the JWT (Done via controller req.auth)
+
+  // 3. Check whether the student account is active
   const student = await prisma.student.findUnique({ where: { id: studentId } });
   if (!student) throw Errors.STUDENT_NOT_FOUND();
 
-  // ---------------------------------------------------------------
-  // 2. Validate Active Session
-  // ---------------------------------------------------------------
+  // 4. Check whether the session exists
   const session = await prisma.attendanceSession.findUnique({
     where: { sessionId: qr.sessionId },
     include: { room: true },
   });
   if (!session) throw Errors.SESSION_NOT_FOUND();
+
+  // 5. Check whether the session status is LIVE (ACTIVE)
   if (session.status !== 'ACTIVE') throw Errors.SESSION_NOT_ACTIVE();
 
-  // ---------------------------------------------------------------
-  // 3. Validate QR Signature (HMAC-SHA256, constant-time compare)
-  // ---------------------------------------------------------------
+  // 6. Check whether the QR sessionId matches the active session
+  if (qr.sessionId !== session.sessionId) throw Errors.SESSION_NOT_FOUND();
+
+  // 7. Verify the QR HMAC signature
   const signableFields: QrSignableFields = {
     sessionId: qr.sessionId,
     token: qr.token,
@@ -80,24 +91,23 @@ export async function validateAndRecordScan(req: ScanRequest) {
     nonce: qr.nonce,
   };
   if (!verifyQrSignature(signableFields, qr.signature)) {
-    throw Errors.INVALID_SIGNATURE();
+    throw Errors.INVALID_QR_SIGNATURE();
   }
 
-  // ---------------------------------------------------------------
-  // 4. Validate QR Expiry (server clock is source of truth, not client-sent times)
-  // ---------------------------------------------------------------
+  // 8. Check whether the QR has expired
   const now = Date.now();
-  const skewMs = env.QR_CLOCK_SKEW_TOLERANCE_SECONDS * 1000;
-  if (now > qr.expiresAt + skewMs) {
+  if (now > qr.expiresAt) {
     throw Errors.QR_EXPIRED();
   }
 
-  // ---------------------------------------------------------------
-  // 5. Validate Secure Token — must match what's CURRENTLY held in Redis
-  //    (i.e. it must be the live, active token — not a past/future one).
-  // ---------------------------------------------------------------
+  // 9. Check whether the QR was issued in the future
+  if (qr.issuedAt > now) {
+    throw Errors.INVALID_QR_SIGNATURE();
+  }
+
+  // 10. Check whether the QR token is the current active token
   const redisRaw = await redis.get(qrRedisKey(qr.sessionId));
-  if (!redisRaw) throw Errors.QR_EXPIRED(); // Redis TTL already evicted it
+  if (!redisRaw) throw Errors.QR_EXPIRED();
 
   const redisEntry = JSON.parse(redisRaw) as {
     tokenHash: string;
@@ -107,56 +117,51 @@ export async function validateAndRecordScan(req: ScanRequest) {
   };
 
   const incomingTokenHash = sha256Hex(qr.token);
-  if (incomingTokenHash !== redisEntry.tokenHash || qr.nonce !== redisEntry.nonce) {
-    throw Errors.INVALID_SIGNATURE(); // token doesn't match the currently active one
+  if (incomingTokenHash !== redisEntry.tokenHash) {
+    throw Errors.INVALID_QR_SIGNATURE();
   }
 
-  // ---------------------------------------------------------------
-  // 6. Validate Token Not Revoked  &  7. Validate Token Not Previously Used
-  //    Cross-check against durable history for defense-in-depth (Redis is the
-  //    fast path; Postgres is the audit-grade backstop).
-  // ---------------------------------------------------------------
-  const historyRow = await prisma.attendanceQrHistory.findUnique({
-    where: { tokenHash: incomingTokenHash },
-  });
-  if (!historyRow || historyRow.revoked) throw Errors.TOKEN_REVOKED();
-  if (historyRow.usedAt) throw Errors.TOKEN_ALREADY_USED();
+  // 11. Check whether the nonce is valid
+  if (qr.nonce !== redisEntry.nonce) {
+    throw Errors.INVALID_QR_SIGNATURE();
+  }
 
-  // Atomic single-use claim (this is what actually prevents two students
-  // racing to submit the same still-valid, unused token — e.g. a shared screenshot).
-  const claimed = await claimTokenOnce(qr.sessionId, studentId, qr.expiresAt - now > 0 ? qr.expiresAt - now : 1000);
-  if (!claimed) throw Errors.TOKEN_ALREADY_USED();
+  // 12. Verify the student belongs to the correct batch
+  if (student.batchId !== session.batchId || batchId !== session.batchId) {
+    throw Errors.BATCH_MISMATCH();
+  }
 
-  // ---------------------------------------------------------------
-  // 8. Validate Batch
-  // ---------------------------------------------------------------
-  if (student.batchId !== session.batchId) throw Errors.BATCH_MISMATCH();
+  // 13. Verify the subject matches the session
+  if (subjectId !== session.subjectId) {
+    throw Errors.SUBJECT_MISMATCH();
+  }
 
-  // ---------------------------------------------------------------
-  // 9. Validate Subject
-  // ---------------------------------------------------------------
-  if (req.subjectIdClaimed !== session.subjectId) throw Errors.SUBJECT_MISMATCH();
+  // 14. Verify the registered device ID
+  if (!student.deviceId) {
+    // First-use device binding
+    await prisma.student.update({
+      where: { id: studentId },
+      data: { deviceId: deviceId },
+    });
+    student.deviceId = deviceId;
+  } else if (student.deviceId !== deviceId) {
+    throw Errors.DEVICE_NOT_AUTHORIZED();
+  }
 
-  // ---------------------------------------------------------------
-  // 10. Validate Attendance Time (session must still be within its active window —
-  //     already covered by status check, but also guard against a session that
-  //     was force-ended between QR issuance and scan submission).
-  // ---------------------------------------------------------------
-  const freshSession = await prisma.attendanceSession.findUnique({ where: { sessionId: qr.sessionId } });
-  if (!freshSession || freshSession.status !== 'ACTIVE') throw Errors.OUTSIDE_TIME_WINDOW();
-
-  // ---------------------------------------------------------------
-  // 11. Validate GPS present
-  // ---------------------------------------------------------------
-  if (gps.lat === undefined || gps.lng === undefined || Number.isNaN(gps.lat) || Number.isNaN(gps.lng)) {
+  // 15. Verify GPS coordinates
+  if (gps.lat === undefined || gps.lng === undefined || Number.isNaN(gps.lat) || Number.isNaN(gps.lng) || gps.lat < -90 || gps.lat > 90 || gps.lng < -180 || gps.lng > 180) {
     throw Errors.GPS_REQUIRED();
   }
 
-  // ---------------------------------------------------------------
-  // 12. Validate Campus Geofence
-  // ---------------------------------------------------------------
+  // 16. Verify GPS accuracy is within the allowed limit
+  if (gps.accuracy !== undefined && gps.accuracy > env.MAX_GPS_ACCURACY_METERS) {
+    throw Errors.POOR_GPS_ACCURACY();
+  }
+
+  // 17. Calculate the distance between the student and classroom coordinates using the Haversine formula
   const dist = distanceMeters(gps.lat, gps.lng, session.room.latitude, session.room.longitude);
-  const allowedRadius = session.room.geofenceRadiusM ?? env.DEFAULT_GEOFENCE_RADIUS_M;
+  const allowedRadius = session.room.geofenceRadiusM ?? env.MAX_ATTENDANCE_DISTANCE_METERS;
+  
   if (dist > allowedRadius) {
     await markHistoryUsed(incomingTokenHash, studentId);
     await prisma.attendanceRecord.create({
@@ -165,29 +170,35 @@ export async function validateAndRecordScan(req: ScanRequest) {
         sessionId: qr.sessionId,
         gpsLat: gps.lat,
         gpsLng: gps.lng,
+        gpsAccuracy: gps.accuracy,
+        distanceFromCampus: dist,
         deviceId,
         status: 'REJECTED_GEOFENCE',
       },
     });
-    throw Errors.OUTSIDE_GEOFENCE();
+    throw Errors.OUTSIDE_ALLOWED_LOCATION();
   }
 
-  // ---------------------------------------------------------------
-  // 13. Validate Duplicate Attendance (DB unique constraint is the final backstop)
-  // ---------------------------------------------------------------
+  // 18. Verify Wi-Fi reference information if available
+  if (session.room.wifiBssidWhitelist && session.room.wifiBssidWhitelist.length > 0) {
+    if (wifi?.referenceKey && !session.room.wifiBssidWhitelist.includes(wifi.referenceKey)) {
+      // Best-effort check when provided; can log if mismatch
+      logger.warn('[scan] WiFi BSSID mismatch', { ssid: wifi.ssid, referenceKey: wifi.referenceKey, whitelist: session.room.wifiBssidWhitelist });
+    }
+  }
+
+  // 19. Check whether attendance has already been recorded
   const existing = await prisma.attendanceRecord.findUnique({
     where: { uq_student_session: { studentId, sessionId: qr.sessionId } },
   });
-  if (existing) throw Errors.DUPLICATE_ATTENDANCE();
+  if (existing) {
+    throw Errors.ATTENDANCE_ALREADY_MARKED();
+  }
 
-  // ---------------------------------------------------------------
-  // 14. Validate Session Status (final re-check immediately before write)
-  // ---------------------------------------------------------------
-  if (freshSession.status !== 'ACTIVE') throw Errors.SESSION_NOT_ACTIVE();
+  // 20. Create the attendance record only after all validations pass
+  const claimed = await claimTokenOnce(qr.sessionId, studentId, qr.expiresAt - now > 0 ? qr.expiresAt - now : 1000);
+  if (!claimed) throw Errors.ATTENDANCE_ALREADY_MARKED();
 
-  // ---------------------------------------------------------------
-  // ALL CHECKS PASSED -> persist atomically
-  // ---------------------------------------------------------------
   try {
     const [record] = await prisma.$transaction([
       prisma.attendanceRecord.create({
@@ -196,8 +207,22 @@ export async function validateAndRecordScan(req: ScanRequest) {
           sessionId: qr.sessionId,
           gpsLat: gps.lat,
           gpsLng: gps.lng,
+          gpsAccuracy: gps.accuracy,
+          distanceFromCampus: dist,
+          locationVerified: true,
+          locationVerificationStatus: 'VERIFIED',
+          locationVerifiedAt: new Date(),
           deviceId,
           status: 'PRESENT',
+        },
+        include: {
+          student: true,
+          session: {
+            include: {
+              subject: true,
+              batch: true,
+            },
+          },
         },
       }),
       prisma.attendanceQrHistory.update({
@@ -210,16 +235,14 @@ export async function validateAndRecordScan(req: ScanRequest) {
 
     broadcastAttendanceMarked(qr.sessionId, {
       studentId,
-      studentName: student.name,
-      studentRoll: student.rollNo,
+      studentName: record.student.name,
+      studentRoll: record.student.rollNo,
       scanTime: record.scanTime.toISOString(),
     });
 
     return record;
   } catch (err: any) {
-    // Unique constraint race (two requests slipped past the earlier check
-    // simultaneously) — surface as a clean duplicate error, not a 500.
-    if (err.code === 'P2002') throw Errors.DUPLICATE_ATTENDANCE();
+    if (err.code === 'P2002') throw Errors.ATTENDANCE_ALREADY_MARKED();
     throw err;
   }
 }
@@ -228,5 +251,5 @@ async function markHistoryUsed(tokenHash: string, studentId: string) {
   await prisma.attendanceQrHistory.update({
     where: { tokenHash },
     data: { usedAt: new Date(), usedByStudentId: studentId },
-  }).catch(() => void 0); // best-effort; rejection path already throws its own error
+  }).catch(() => void 0);
 }

@@ -21,11 +21,13 @@ export default function StudentScanPage() {
   const webcamRef = useRef(null);
   const canvasRef = useRef(document.createElement('canvas'));
   const rafRef = useRef(null);
-  const scanningLockRef = useRef(false);
+  const lastScannedTokenRef = useRef(null);
+  const isSubmittingRef = useRef(false);
 
   const [status, setStatus] = useState('idle'); // idle | scanning | submitting | success | error
   const [message, setMessage] = useState('');
   const [cameraError, setCameraError] = useState('');
+  const [successData, setSuccessData] = useState(null);
 
   const stopScanning = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -33,21 +35,46 @@ export default function StudentScanPage() {
 
   const handleDecoded = useCallback(
     async (rawValue) => {
-      if (scanningLockRef.current) return;
-      scanningLockRef.current = true;
+      let qrPayload = null;
+      try {
+        qrPayload = JSON.parse(rawValue);
+      } catch (e) {
+        return; // Skip invalid JSON scanned payloads silently
+      }
+
+      // 4. Validate that required QR fields exist before submitting
+      if (
+        !qrPayload ||
+        !qrPayload.sessionId ||
+        !qrPayload.token ||
+        !qrPayload.issuedAt ||
+        !qrPayload.expiresAt ||
+        !qrPayload.nonce ||
+        !qrPayload.signature
+      ) {
+        return; // Skip if payload does not have required QR fields
+      }
+
+      // 10. Submit the attendance request only once for each QR token
+      // 11. Prevent duplicate API calls while the same QR remains visible
+      if (lastScannedTokenRef.current === qrPayload.token) {
+        return;
+      }
+      if (isSubmittingRef.current) return;
+
+      isSubmittingRef.current = true;
+      lastScannedTokenRef.current = qrPayload.token;
       stopScanning();
       setStatus('submitting');
       setMessage('Verifying your location…');
 
       try {
-        const qrPayload = JSON.parse(rawValue);
-
-        // The QR itself deliberately never carries batch/subject (see backend
-        // spec: "QR must NEVER contain attendance information"). We only know
-        // the sessionId at this point, so we look up the non-sensitive
-        // batch/subject the session belongs to before submitting the scan.
+        // 8. Fetch the public session information using sessionId
+        // 9. Obtain batchId and subjectId from the session information
         const { data: sessionInfo } = await getSessionPublicInfo(qrPayload.sessionId);
 
+        // 5. Obtain the current GPS coordinates
+        // 6. Include GPS accuracy
         const gps = await new Promise((resolve, reject) => {
           if (!navigator.geolocation) return reject(new Error('Geolocation not supported'));
           navigator.geolocation.getCurrentPosition(
@@ -57,17 +84,41 @@ export default function StudentScanPage() {
           );
         });
 
-        await submitScan({
-          deviceId: getDeviceId(),
-          gpsLat: gps.lat,
-          gpsLng: gps.lng,
-          gpsAccuracy: gps.accuracy,
-          qrPayload: qrPayload,
+        // 7. Read the locally stored device ID
+        const deviceId = getDeviceId();
+
+        // Submit attendance scan request following the exact required contract
+        const response = await submitScan({
+          batchId: sessionInfo.batchId,
+          subjectId: sessionInfo.subjectId,
+          deviceId: deviceId,
+          gps: {
+            lat: gps.lat,
+            lng: gps.lng,
+            accuracy: gps.accuracy,
+          },
+          wifi: {
+            ssid: null,
+            referenceKey: null,
+          },
+          qr: qrPayload,
+        });
+
+        setSuccessData({
+          studentName: response.data?.studentName || user?.name || 'Student',
+          rollNo: response.data?.rollNo || user?.rollNo || '',
+          roomName: sessionInfo.roomName,
+          sessionName: response.data?.sessionName || sessionInfo.subjectName || '',
+          subjectName: response.data?.subjectName || sessionInfo.subjectName || '',
+          status: response.data?.status || 'PRESENT',
+          markedAt: response.data?.markedAt || new Date().toISOString(),
         });
 
         setStatus('success');
         setMessage('Attendance marked successfully.');
       } catch (err) {
+        // 13. Resume scanning after a failed or expired QR attempt (reset lock)
+        lastScannedTokenRef.current = null;
         setStatus('error');
         let errorMsg = err.message || 'Could not mark attendance. Try scanning again.';
         
@@ -75,12 +126,22 @@ export default function StudentScanPage() {
         const errMsg = err.response?.data?.message || err.message;
 
         if (errCode) {
-          if (errCode === 'OUTSIDE_GEOFENCE' || errCode === 'GEOFENCE_REJECTED') {
-            errorMsg = 'Attendance rejected. You are outside the allowed attendance location.';
+          if (errCode === 'OUTSIDE_GEOFENCE' || errCode === 'GEOFENCE_REJECTED' || errCode === 'OUTSIDE_ALLOWED_LOCATION') {
+            errorMsg = 'You are outside the allowed attendance location.';
           } else if (errCode === 'POOR_GPS_ACCURACY') {
             errorMsg = 'Location accuracy is too low. Please move to an open area and try again.';
           } else if (errCode === 'INVALID_GPS' || errCode === 'GPS_REQUIRED') {
             errorMsg = 'Unable to access your live location. Enable GPS and try again.';
+          } else if (errCode === 'DEVICE_NOT_AUTHORIZED') {
+            errorMsg = 'Attendance cannot be marked from this device.';
+          } else if (errCode === 'QR_EXPIRED') {
+            errorMsg = 'This QR code has expired. Scan the latest QR code.';
+          } else if (errCode === 'INVALID_QR_SIGNATURE') {
+            errorMsg = 'The QR code is invalid or has been modified.';
+          } else if (errCode === 'ATTENDANCE_ALREADY_MARKED') {
+            errorMsg = 'Attendance has already been marked for this session.';
+          } else if (errCode === 'SESSION_NOT_ACTIVE') {
+            errorMsg = 'Attendance session is not active.';
           } else if (errCode === 'INTERNAL_ERROR') {
             errorMsg = 'Database connection issue. Please connect to a VPN or non-blocked network and try again.';
           } else {
@@ -89,7 +150,7 @@ export default function StudentScanPage() {
         }
         setMessage(errorMsg);
       } finally {
-        scanningLockRef.current = false;
+        isSubmittingRef.current = false;
       }
     },
     [stopScanning, user]
@@ -222,9 +283,44 @@ export default function StudentScanPage() {
           )}
 
           {status === 'success' && (
-            <div className="mt-6 flex flex-col items-center gap-2 rounded-lg border border-signal-green/30 bg-signal-green/10 px-4 py-4 text-center">
-              <CheckCircle2 size={22} className="text-signal-green" />
-              <p className="text-sm text-signal-green">{message}</p>
+            <div className="mt-6 space-y-4">
+              <div className="flex flex-col items-center gap-2 rounded-lg border border-signal-green/30 bg-signal-green/10 px-4 py-4 text-center">
+                <CheckCircle2 size={22} className="text-signal-green" />
+                <p className="text-sm text-signal-green font-medium">{message}</p>
+              </div>
+
+              {successData && (
+                <div className="rounded-xl border border-ink-border bg-ink-900/50 p-4 space-y-3 text-left animate-[fadeIn_0.4s_ease]">
+                  <div className="flex justify-between border-b border-ink-border pb-2">
+                    <span className="text-xs text-slate-500">Student Name</span>
+                    <span className="text-xs font-semibold text-white">{successData.studentName}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-ink-border pb-2">
+                    <span className="text-xs text-slate-500">Roll Number</span>
+                    <span className="text-xs font-semibold text-white">{successData.rollNo}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-ink-border pb-2">
+                    <span className="text-xs text-slate-500">Subject</span>
+                    <span className="text-xs font-semibold text-white">{successData.subjectName}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-ink-border pb-2">
+                    <span className="text-xs text-slate-500">Room/Session</span>
+                    <span className="text-xs font-semibold text-white">{successData.roomName || successData.sessionName}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-ink-border pb-2">
+                    <span className="text-xs text-slate-500">Status</span>
+                    <span className="text-xs font-semibold text-signal-green bg-signal-green/10 px-2 py-0.5 rounded text-[10px] uppercase">
+                      {successData.status}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-xs text-slate-500">Marked Time</span>
+                    <span className="text-xs font-semibold text-white">
+                      {new Date(successData.markedAt).toLocaleTimeString()}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

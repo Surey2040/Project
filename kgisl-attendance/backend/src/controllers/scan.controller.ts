@@ -7,16 +7,22 @@ import { AppError } from '../utils/AppError';
 const scanSchema = z.object({
   batchId: z.string().uuid(),
   subjectId: z.string().uuid(),
+  deviceId: z.string().min(1),
   gps: z.object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
+    accuracy: z.number().optional(),
   }),
+  wifi: z.object({
+    ssid: z.string().optional().nullable(),
+    referenceKey: z.string().optional().nullable(),
+  }).optional().nullable(),
   qr: z.object({
     sessionId: z.string().uuid(),
     token: z.string().min(20),
     issuedAt: z.number().int().positive(),
     expiresAt: z.number().int().positive(),
-    nonce: z.string().length(32), // 16 bytes hex
+    nonce: z.string().min(1),
     signature: z.string().min(10),
   }),
 });
@@ -27,14 +33,14 @@ export async function scanHandler(req: Request, res: Response, next: NextFunctio
 
   try {
     const body = scanSchema.parse(req.body);
-    const deviceId = req.auth!.deviceId ?? req.headers['x-device-id']?.toString() ?? 'unknown';
 
     const record = await validateAndRecordScan({
       studentId: studentId!,
-      deviceId,
-      batchIdClaimed: body.batchId,
-      subjectIdClaimed: body.subjectId,
+      batchId: body.batchId,
+      subjectId: body.subjectId,
+      deviceId: body.deviceId,
       gps: body.gps,
+      wifi: body.wifi,
       qr: body.qr,
     });
 
@@ -50,8 +56,19 @@ export async function scanHandler(req: Request, res: Response, next: NextFunctio
 
     res.status(201).json({
       success: true,
-      message: 'Attendance marked successfully',
-      data: { id: record.id, scanTime: record.scanTime, status: record.status },
+      code: 'ATTENDANCE_MARKED',
+      message: 'Attendance marked successfully.',
+      data: {
+        attendanceId: record.id,
+        sessionId: record.sessionId,
+        studentId: record.studentId,
+        studentName: record.student.name,
+        rollNo: record.student.rollNo,
+        sessionName: record.session.batch.name,
+        subjectName: record.session.subject.name,
+        status: record.status,
+        markedAt: record.scanTime.toISOString(),
+      },
     });
   } catch (err) {
     // Every rejection reason (expired QR, geofence, duplicate, signature, etc.) is
