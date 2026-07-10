@@ -1,5 +1,6 @@
 import { Wifi, MapPin, ShieldCheck, Bell } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 
 function StatusPill({ icon: Icon, label, value, tone = 'green' }) {
   const toneClasses = {
@@ -33,13 +34,16 @@ const TITLE_MAP = {
 
 export default function TopBar({ connected, notificationCount = 3 }) {
   const location = useLocation();
+  const { user } = useAuth();
   const title = TITLE_MAP[location.pathname] || 'Smart Attendance';
 
   return (
     <header className="flex items-center justify-between px-8 py-6">
       <div>
         <h1 className="font-display text-2xl font-bold text-white">{title}</h1>
-        <p className="text-sm text-slate-500">Smart. Secure. Seamless.</p>
+        <p className="text-sm text-slate-500 mt-1">
+          Welcome back, <span className="font-semibold text-signal-blue">{user?.name || 'Faculty'}</span>
+        </p>
       </div>
 
       <div className="flex items-center gap-3">

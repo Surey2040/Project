@@ -1,9 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma';
 
-export async function listStudentsHandler(_req: Request, res: Response, next: NextFunction) {
+export async function listStudentsHandler(req: Request, res: Response, next: NextFunction) {
   try {
+    const batchId = req.query.batchId as string | undefined;
+
     const students = await prisma.student.findMany({
+      where: batchId ? { batchId } : undefined,
       include: {
         batch: true,
         records: {

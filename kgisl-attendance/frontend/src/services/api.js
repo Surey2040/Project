@@ -93,7 +93,7 @@ export const getTodayScans = () => api.get('/attendance/today').then((r) => r.da
 // ---- Admin/Faculty Manage ----
 export const listFaculty = () => api.get('/faculty').then((r) => r.data.data);
 export const createFaculty = (payload) => api.post('/faculty', payload).then((r) => r.data);
-export const listStudents = () => api.get('/students').then((r) => r.data.data);
+export const listStudents = (batchId) => api.get(`/students${batchId ? `?batchId=${batchId}` : ''}`).then((r) => r.data.data);
 export const listHistory = () => api.get('/history').then((r) => r.data.data);
 
 // ---- AI Agent ----

@@ -33,12 +33,20 @@ export async function scanAttendanceHandler(req: Request, res: Response, next: N
   }
 }
 
-import { getTodayAttendanceForFaculty } from '../services/attendance.service';
+import { getTodayAttendanceForFaculty, getAllTodayAttendance } from '../services/attendance.service';
+import { prisma } from '../config/prisma';
 
 export async function getTodayAttendanceHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const facultyId = req.auth!.sub;
-    const records = await getTodayAttendanceForFaculty(facultyId);
+    
+    // Check if the user is Admin
+    const faculty = await prisma.faculty.findUnique({ where: { id: facultyId } });
+    const isAdmin = faculty?.email === 'admin@kgisliim.ac.in';
+
+    const records = isAdmin 
+      ? await getAllTodayAttendance()
+      : await getTodayAttendanceForFaculty(facultyId);
 
     // Map to match the shape of WebSocket 'attendance_marked' event payload
     const formattedScans = records.map(r => ({

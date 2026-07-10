@@ -90,3 +90,19 @@ export async function getTodayAttendanceForFaculty(facultyId: string) {
     take: 50,
   });
 }
+
+export async function getAllTodayAttendance() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return await prisma.attendanceRecord.findMany({
+    where: {
+      scanTime: { gte: today },
+    },
+    include: {
+      student: true,
+    },
+    orderBy: { scanTime: 'desc' },
+    take: 100,
+  });
+}

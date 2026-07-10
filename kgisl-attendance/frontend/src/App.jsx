@@ -19,6 +19,16 @@ function ProtectedRoute({ role, children }) {
   return children;
 }
 
+function TechnicalProtectedRoute({ children }) {
+  const { user } = useAuth();
+  if (!user || user.role !== 'FACULTY') return <Navigate to="/" replace />;
+  
+  const isTechnicalOrAdmin = user?.email === 'teachnicalteam@gmail.com' || user?.email === 'admin@kgisliim.ac.in';
+  if (!isTechnicalOrAdmin) return <Navigate to="/faculty/dashboard" replace />;
+  
+  return children;
+}
+
 export default function App() {
   return (
     <AuthProvider>

@@ -1,19 +1,52 @@
 import { useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar.jsx';
 import TopBar from '../components/TopBar.jsx';
-import { listStudents } from '../services/api.js';
-import { Search, GraduationCap } from 'lucide-react';
+import { listStudents, getActiveSession, listBatches } from '../services/api.js';
+import { Search, GraduationCap, Filter } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export default function StudentsPage() {
+  const { user } = useAuth();
   const [students, setStudents] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [selectedBatchId, setSelectedBatchId] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // 1. Fetch batches and try to auto-detect active session's batch on mount
   useEffect(() => {
     (async () => {
       try {
-        const data = await listStudents();
+        const [batchesData] = await Promise.all([
+          listBatches().catch(() => []),
+        ]);
+        setBatches(batchesData);
+
+        const isAdmin = user?.email === 'admin@kgisliim.ac.in';
+        if (!isAdmin) {
+          try {
+            const activeSession = await getActiveSession();
+            if (activeSession && activeSession.batchId) {
+              setSelectedBatchId(activeSession.batchId);
+            }
+          } catch (e) {
+            // Ignore if no active session
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load initial data', err);
+      }
+    })();
+  }, [user]);
+
+  // 2. Fetch students whenever selectedBatchId changes
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const data = await listStudents(selectedBatchId || null);
         setStudents(data);
       } catch (err) {
         setError(err.message || 'Failed to load students');
@@ -21,12 +54,14 @@ export default function StudentsPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [selectedBatchId]);
 
   const filtered = students.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.rollNo.toLowerCase().includes(search.toLowerCase())
   );
+
+  const currentBatchName = batches.find(b => b.id === selectedBatchId)?.name || '';
 
   return (
     <div className="flex min-h-screen bg-ink-950">
@@ -36,28 +71,52 @@ export default function StudentsPage() {
         <TopBar connected={true} />
 
         <div className="px-8 mt-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-signal-red/10 border border-signal-red/20 text-signal-red">
                 <GraduationCap size={20} />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white">Student Directory</h2>
-                <p className="text-sm text-slate-400">Total Registered: {students.length}</p>
+                <h2 className="text-xl font-bold text-white">
+                  {currentBatchName ? `${currentBatchName} Students` : 'All Students'}
+                </h2>
+                <p className="text-sm text-slate-400">Total: {students.length}</p>
               </div>
             </div>
 
-            <div className="relative max-w-sm w-full">
-              <span className="absolute inset-y-0 left-3 flex items-center text-slate-500">
-                <Search size={16} />
-              </span>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name or roll number..."
-                className="w-full pl-10 pr-4 py-2 bg-ink-900 border border-ink-border rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:border-signal-red transition"
-              />
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+              <div className="relative w-full sm:w-48">
+                <span className="absolute inset-y-0 left-3 flex items-center text-slate-500">
+                  <Filter size={16} />
+                </span>
+                <select
+                  value={selectedBatchId}
+                  onChange={(e) => setSelectedBatchId(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-ink-900 border border-ink-border rounded-xl text-slate-200 focus:outline-none focus:border-signal-red transition cursor-pointer appearance-none"
+                >
+                  <option value="">All Sections</option>
+                  {batches.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+                {/* Custom arrow for select */}
+                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <span className="absolute inset-y-0 left-3 flex items-center text-slate-500">
+                  <Search size={16} />
+                </span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search student..."
+                  className="w-full pl-10 pr-4 py-2 bg-ink-900 border border-ink-border rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:border-signal-red transition"
+                />
+              </div>
             </div>
           </div>
 

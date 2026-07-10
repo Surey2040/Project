@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, User, KeyRound, Eye, EyeOff, ArrowRight, BadgeCheck } from 'lucide-react';
-import { loginFaculty, registerFaculty } from '../services/api.js';
+import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, User, KeyRound, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { loginFaculty } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import Loader from '../components/Loader.jsx';
 
 export default function AdminLogin() {
-  const [isRegister, setIsRegister] = useState(true);
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,12 +20,7 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
     try {
-      let res;
-      if (isRegister) {
-        res = await registerFaculty({ name, email, password });
-      } else {
-        res = await loginFaculty(email, password);
-      }
+      const res = await loginFaculty(email, password);
       const { token, refreshToken, user } = res;
       login(token, refreshToken, user);
       setIsSuccessLoading(true);
@@ -36,7 +29,7 @@ export default function AdminLogin() {
         navigate('/faculty/dashboard');
       }, 2000);
     } catch (err) {
-      setError(err.message || (isRegister ? 'Registration failed' : 'Login failed'));
+      setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -87,24 +80,10 @@ export default function AdminLogin() {
           </div>
           <h2 className="text-2xl font-bold text-black tracking-wide">Admin Portal</h2>
           <p className="text-xs text-black/70 font-medium mb-6">
-            {isRegister ? 'Register for a new admin account' : 'Access the administration dashboard'}
+            Access the administration dashboard
           </p>
 
           <form onSubmit={handleSubmit} className="w-full space-y-4">
-            {isRegister && (
-              <div className="relative overflow-hidden rounded-[1rem]">
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder=" "
-                  className="w-full py-3.5 pl-11 pr-4 custom-input text-sm font-medium"
-                />
-                <BadgeCheck size={18} className="absolute left-4 top-[15px] text-slate-400 pointer-events-none" strokeWidth={2.5} />
-                <label className="custom-label">Full Name</label>
-              </div>
-            )}
             <div className="relative overflow-hidden rounded-[1rem]">
               <input
                 type="email"
@@ -138,39 +117,24 @@ export default function AdminLogin() {
               </button>
             </div>
 
-            {!isRegister && (
-              <div className="flex items-center justify-between text-xs px-1">
-                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-500 hover:text-slate-800 transition-colors">
-                  <input type="checkbox" className="w-3.5 h-3.5 accent-signal-blue rounded-sm border-slate-300" />
-                  Remember me
-                </label>
-                <a href="#" className="font-medium text-signal-blue hover:text-blue-700 underline-offset-2 hover:underline transition-all">
-                  Forgot Password?
-                </a>
-              </div>
-            )}
-
-            <div className="text-center mt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegister(!isRegister);
-                  setError('');
-                }}
-                className="text-xs text-slate-500 hover:text-signal-blue transition-colors underline-offset-2 hover:underline font-medium"
-              >
-                {isRegister ? 'Do you have an account? Login' : "Don't have an account? Register"}
-              </button>
+            <div className="flex items-center justify-between text-xs px-1">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-500 hover:text-slate-800 transition-colors">
+                <input type="checkbox" className="w-3.5 h-3.5 accent-signal-blue rounded-sm border-slate-300" />
+                Remember me
+              </label>
+              <a href="#" className="font-medium text-signal-blue hover:text-blue-700 underline-offset-2 hover:underline transition-all">
+                Forgot Password?
+              </a>
             </div>
 
             {error && (
-              <div className="w-full bg-red-500/20 border border-red-500/50 rounded-lg p-2 text-center text-xs font-semibold text-red-200">
+              <div className="w-full bg-red-500/20 border border-red-500/50 rounded-lg p-2 text-center text-xs font-semibold text-red-200 mt-2">
                 {error}
               </div>
             )}
 
             <button type="submit" disabled={loading} className="w-full py-3.5 font-bold tracking-wider uppercase text-sm bg-signal-blue hover:bg-blue-600 text-white rounded-[1rem] transition-all shadow-md hover:shadow-lg hover:-translate-y-[1px] active:translate-y-0 flex items-center justify-center gap-2 mt-4">
-              {loading ? (isRegister ? 'Registering...' : 'Logging in...') : (isRegister ? 'Register' : 'Sign In')}
+              {loading ? 'Logging in...' : 'Sign In'}
               {!loading && <ArrowRight size={16} strokeWidth={2.5} />}
             </button>
           </form>
