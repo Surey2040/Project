@@ -89,19 +89,11 @@ export default function StudentScanPage() {
 
         // Submit attendance scan request following the exact required contract
         const response = await submitScan({
-          batchId: sessionInfo.batchId,
-          subjectId: sessionInfo.subjectId,
           deviceId: deviceId,
-          gps: {
-            lat: gps.lat,
-            lng: gps.lng,
-            accuracy: gps.accuracy,
-          },
-          wifi: {
-            ssid: null,
-            referenceKey: null,
-          },
-          qr: qrPayload,
+          gpsLat: gps.lat,
+          gpsLng: gps.lng,
+          gpsAccuracy: gps.accuracy,
+          qrPayload: qrPayload,
         });
 
         setSuccessData({
