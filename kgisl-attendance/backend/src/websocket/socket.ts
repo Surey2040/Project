@@ -52,6 +52,12 @@ export function initWebSocket(httpServer: HttpServer): SocketIOServer {
       // receive updates for the exact session they're viewing.
       socket.join(sessionRoom(sessionId));
       logger.debug('[ws] socket joined session', { sessionId, socketId: socket.id });
+      
+      // Force an immediate tick so the UI gets the QR code right away!
+      const { tickAndBroadcast } = require('../services/session.service');
+      tickAndBroadcast(sessionId).catch((err: any) => 
+        logger.error('[ws] failed to trigger initial qr tick', { sessionId, error: err.message })
+      );
     });
 
     socket.on('leave_session', (sessionId: string) => {

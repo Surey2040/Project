@@ -53,7 +53,7 @@ function clearRefresh(sessionId: string) {
   }
 }
 
-async function tickAndBroadcast(sessionId: string) {
+export async function tickAndBroadcast(sessionId: string) {
   const session = await prisma.attendanceSession.findUnique({ where: { sessionId } });
   if (!session || session.status !== 'ACTIVE') {
     clearRefresh(sessionId);
