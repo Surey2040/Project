@@ -27,11 +27,11 @@ const envSchema = z.object({
     .optional(),
 
   QR_SIGNING_SECRET: z.string().default('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
-  QR_EXPIRY_SECONDS: z.coerce.number().int().positive().default(10),
+  QR_EXPIRY_SECONDS: z.coerce.number().int().positive().default(60),
   MAX_ATTENDANCE_DISTANCE_METERS: z.coerce.number().int().positive().default(3000),
   MAX_GPS_ACCURACY_METERS: z.coerce.number().int().positive().default(10000),
 
-  QR_REFRESH_INTERVAL_SECONDS: z.coerce.number().int().positive().default(10),
+  QR_REFRESH_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
   QR_CLOCK_SKEW_TOLERANCE_SECONDS: z.coerce.number().int().min(0).default(2),
 
   DEFAULT_GEOFENCE_RADIUS_M: z.coerce.number().int().positive().default(120),
