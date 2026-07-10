@@ -160,7 +160,7 @@ export async function validateAndRecordScan(req: ScanRequest) {
 
   // 17. Calculate the distance between the student and classroom coordinates using the Haversine formula
   const dist = distanceMeters(gps.lat, gps.lng, session.room.latitude, session.room.longitude);
-  const allowedRadius = session.room.geofenceRadiusM ?? env.MAX_ATTENDANCE_DISTANCE_METERS;
+  const allowedRadius = Math.max(session.room.geofenceRadiusM ?? env.MAX_ATTENDANCE_DISTANCE_METERS, env.MAX_ATTENDANCE_DISTANCE_METERS);
   
   if (dist > allowedRadius) {
     await markHistoryUsed(incomingTokenHash, studentId);
