@@ -14,7 +14,7 @@ const importTimetableSchema = z.array(
   })
 );
 
-export async function importTimetable(req: Request, res: Response, next: NextFunction) {
+export async function importTimetable(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const data = importTimetableSchema.parse(req.body);
 
@@ -29,7 +29,7 @@ export async function importTimetable(req: Request, res: Response, next: NextFun
     const batchMap = new Map(batches.map((b) => [b.name, b.id]));
     const roomMap = new Map(rooms.map((r) => [r.name, r.id]));
 
-    const allocationsToCreate = [];
+    const allocationsToCreate: { facultyId: string; subjectId: string; batchId: string; roomId: string; dayOfWeek: number; startTime: string; endTime: string; }[] = [];
 
     for (const row of data) {
       const facultyId = facultyMap.get(row.facultyEmail);
@@ -38,10 +38,11 @@ export async function importTimetable(req: Request, res: Response, next: NextFun
       const roomId = roomMap.get(row.roomName);
 
       if (!facultyId || !subjectId || !batchId || !roomId) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: `Mapping failed for row: ${JSON.stringify(row)}. Make sure Master Data exists.`,
         });
+        return;
       }
 
       allocationsToCreate.push({

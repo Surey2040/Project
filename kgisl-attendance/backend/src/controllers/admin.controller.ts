@@ -34,7 +34,7 @@ const createRoomSchema = z.object({
 });
 
 // Admin Controllers
-export async function getStats(req: Request, res: Response, next: NextFunction) {
+export async function getStats(_req: Request, res: Response, next: NextFunction) {
   try {
     const students = await prisma.student.count();
     const faculty = await prisma.faculty.count();
@@ -46,7 +46,7 @@ export async function getStats(req: Request, res: Response, next: NextFunction) 
 }
 
 // Faculty Management
-export async function listFaculty(req: Request, res: Response, next: NextFunction) {
+export async function listFaculty(_req: Request, res: Response, next: NextFunction) {
   try {
     const faculty = await prisma.faculty.findMany({ select: { id: true, name: true, email: true, createdAt: true } });
     res.json({ success: true, data: faculty });
@@ -70,10 +70,9 @@ export async function createFaculty(req: Request, res: Response, next: NextFunct
 }
 
 // Student Management
-export async function listStudents(req: Request, res: Response, next: NextFunction) {
+export async function listStudents(_req: Request, res: Response, next: NextFunction) {
   try {
     const students = await prisma.student.findMany({
-      include: { batch: true },
       select: { id: true, name: true, rollNo: true, email: true, batchId: true, deviceId: true, phone: true }
     });
     res.json({ success: true, data: students });

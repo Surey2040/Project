@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma';
 
-export async function getAggregatedReport(req: Request, res: Response, next: NextFunction) {
+export async function getAggregatedReport(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { batchId, fromDate, toDate } = req.query;
 
@@ -37,7 +37,7 @@ export async function getAggregatedReport(req: Request, res: Response, next: Nex
   }
 }
 
-export async function getStudentReport(req: Request, res: Response, next: NextFunction) {
+export async function getStudentReport(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { studentId } = req.params;
 
@@ -50,7 +50,8 @@ export async function getStudentReport(req: Request, res: Response, next: NextFu
     });
 
     if (!student) {
-      return res.status(404).json({ success: false, message: 'Student not found' });
+      res.status(404).json({ success: false, message: 'Student not found' });
+      return;
     }
 
     // Aggregate attendance by subject
@@ -59,7 +60,7 @@ export async function getStudentReport(req: Request, res: Response, next: NextFu
       const subName = record.session.subject.name;
       if (!subjectStats[subName]) subjectStats[subName] = { present: 0, total: 0 };
       if (record.status === 'PRESENT') subjectStats[subName].present += 1;
-      subjectStats[subName].total += 1; // Actually we need total sessions for this batch, but approximation is fine for now
+      subjectStats[subName].total += 1;
     });
 
     res.json({

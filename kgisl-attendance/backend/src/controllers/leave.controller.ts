@@ -46,7 +46,7 @@ export async function getMyLeaveRequests(req: Request, res: Response, next: Next
   }
 }
 
-export async function getPendingLeaveRequests(req: Request, res: Response, next: NextFunction) {
+export async function getPendingLeaveRequests(_req: Request, res: Response, next: NextFunction) {
   try {
     // Faculty / Admin
     const requests = await prisma.leaveRequest.findMany({

@@ -29,4 +29,5 @@ export const Errors = {
   DEVICE_NOT_AUTHORIZED: () => new AppError('DEVICE_NOT_AUTHORIZED', 'Attendance cannot be marked from this device.', 403),
   RATE_LIMITED: () => new AppError('RATE_LIMITED', 'Too many scan attempts, please slow down', 429),
   INVALID_CREDENTIALS: () => new AppError('INVALID_CREDENTIALS', 'Invalid email or password', 401),
+  NOT_FOUND: (msg = 'Resource not found') => new AppError('NOT_FOUND', msg, 404),
 };
