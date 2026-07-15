@@ -56,9 +56,9 @@ export default function AgentChat() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-[350px] md:w-[400px] h-[500px] max-h-[80vh] flex flex-col rounded-2xl bg-[#1E1B4B]/95 backdrop-blur-xl border border-[#484575] shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out]">
+        <div className="fixed bottom-6 right-6 z-50 w-[300px] md:w-[340px] h-[600px] max-h-[88vh] flex flex-col rounded-2xl bg-[#1A1840] border border-[#484575] shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out]" style={{ backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-[#484575] bg-[#302D68]/50">
+          <div className="flex items-center justify-between p-4 border-b border-[#484575]" style={{ background: '#201D52' }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-[#625CA8]/20 flex items-center justify-center border border-[#625CA8]/30">
                 <span className="text-xl">🤖</span>
@@ -76,7 +76,7 @@ export default function AgentChat() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar" style={{ background: '#1A1840' }}>
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] rounded-2xl p-3 text-sm whitespace-pre-wrap ${msg.sender === 'user' ? 'bg-[#625CA8] text-white rounded-tr-none' : 'bg-[#302D68] border border-[#484575] text-[#F5F5F7] rounded-tl-none'}`}>
@@ -97,7 +97,7 @@ export default function AgentChat() {
           </div>
 
           {/* Quick Prompts */}
-          <div className="px-4 pb-2 flex gap-2 overflow-x-auto custom-scrollbar no-scrollbar py-2">
+          <div className="px-4 pb-2 flex gap-2 overflow-x-auto no-scrollbar py-2" style={{ background: '#1A1840' }}>
             {quickPrompts.map((prompt, i) => (
               <button 
                 key={i} 
@@ -110,7 +110,7 @@ export default function AgentChat() {
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t border-[#484575] bg-[#302D68]/30">
+          <div className="p-4 border-t border-[#484575]" style={{ background: '#201D52' }}>
             <form 
               onSubmit={(e) => { e.preventDefault(); handleSend(); }}
               className="flex items-center gap-2"
