@@ -213,133 +213,154 @@ export default function StudentScanPage() {
     setCameraError('');
   }
 
-  useEffect(() => stopScanning, [stopScanning]);
+  useEffect(() => stopScanning, [stopScanning]);  return (
+    <div
+      className="min-h-screen w-full overflow-y-auto"
+      style={{
+        background: 'linear-gradient(160deg, #0d0f1a 0%, #111827 50%, #0d1117 100%)',
+      }}
+    >
+      {/* Subtle ambient glow — not harsh */}
+      <div
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 60% 45% at 50% 0%, rgba(99,102,241,0.10) 0%, transparent 70%), radial-gradient(ellipse 40% 30% at 80% 80%, rgba(16,185,129,0.06) 0%, transparent 60%)',
+        }}
+      />
 
-  return (
-    <div className="min-h-screen flex flex-col items-center px-6 py-10 bg-transparent">
-      <aside className="hidden"></aside>
-      <div className="w-full max-w-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-slate-500">Signed in as</p>
-            <p className="text-sm font-medium text-slate-200">{user?.name}</p>
-          </div>
-          <button onClick={logout} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300">
-            <LogOut size={13} /> Sign out
-          </button>
-        </div>
+      <div className="relative z-10 flex flex-col items-center px-4 py-8 pb-16 min-h-screen">
+        <div className="w-full max-w-sm">
 
-        <div className="mt-8 rounded-2xl glass-card p-6">
-          <h1 className="font-display text-xl font-semibold text-white">Mark Attendance</h1>
-          <p className="mt-1 text-sm text-slate-400">Scan the live QR shown by your faculty.</p>
-
-          <div className="mt-6 scan-frame relative mx-auto w-full aspect-square max-w-[280px] overflow-hidden rounded-2xl bg-black">
-            <span className="corner corner-tl" />
-            <span className="corner corner-tr" />
-            <span className="corner corner-bl" />
-            <span className="corner corner-br" />
-
-            {status === 'scanning' ? (
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{ facingMode: 'environment' }}
-                onUserMedia={handleUserMedia}
-                onUserMediaError={handleUserMediaError}
-                className="h-full w-full object-cover animate-[fadeIn_0.5s_ease]"
-                playsInline
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-[#070B1D]/70">
-                <ScanLine size={36} className="text-slate-600" />
-              </div>
-            )}
-
-            {status === 'scanning' && (
-              <div className="sweep animate-scanline" style={{ animationDuration: '2.4s' }} />
-            )}
-          </div>
-
-          {cameraError && <p className="mt-4 text-xs text-signal-red">{cameraError}</p>}
-
-          {status === 'idle' && (
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <p className="text-xs text-slate-500">Signed in as</p>
+              <p className="text-sm font-semibold text-slate-200">{user?.name}</p>
+            </div>
             <button
-              onClick={startScanning}
-              className="mt-6 w-full bg-signal-red py-2.5 text-sm text-white glass-btn"
+              onClick={logout}
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
             >
-              Start Scanning
+              <LogOut size={13} /> Sign out
             </button>
-          )}
+          </div>
 
-          {status === 'submitting' && (
-            <p className="mt-6 text-center text-sm text-slate-400 animate-pulse">{message}</p>
-          )}
+          {/* Scanner Card */}
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.04] backdrop-blur-xl p-5 shadow-xl">
+            <h1 className="text-lg font-semibold text-white tracking-tight">Mark Attendance</h1>
+            <p className="mt-1 text-xs text-slate-400">Scan the live QR shown by your faculty.</p>
 
-          {status === 'success' && (
-            <div className="mt-6 space-y-4">
-              <div className="flex flex-col items-center gap-2 rounded-lg border border-signal-green/30 bg-signal-green/10 px-4 py-4 text-center">
-                <CheckCircle2 size={22} className="text-signal-green" />
-                <p className="text-sm text-signal-green font-medium">{message}</p>
-              </div>
+            {/* Camera frame */}
+            <div className="mt-5 scan-frame relative mx-auto w-full aspect-square max-w-[260px] overflow-hidden rounded-xl bg-black">
+              <span className="corner corner-tl" />
+              <span className="corner corner-tr" />
+              <span className="corner corner-bl" />
+              <span className="corner corner-br" />
 
-              {successData && (
-                <div className="rounded-xl border border-ink-border bg-ink-900/50 p-4 space-y-3 text-left animate-[fadeIn_0.4s_ease]">
-                  <div className="flex justify-between border-b border-ink-border pb-2">
-                    <span className="text-xs text-slate-500">Student Name</span>
-                    <span className="text-xs font-semibold text-white">{successData.studentName}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-ink-border pb-2">
-                    <span className="text-xs text-slate-500">Roll Number</span>
-                    <span className="text-xs font-semibold text-white">{successData.rollNo}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-ink-border pb-2">
-                    <span className="text-xs text-slate-500">Subject</span>
-                    <span className="text-xs font-semibold text-white">{successData.subjectName}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-ink-border pb-2">
-                    <span className="text-xs text-slate-500">Room/Session</span>
-                    <span className="text-xs font-semibold text-white">{successData.roomName || successData.sessionName}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-ink-border pb-2">
-                    <span className="text-xs text-slate-500">Status</span>
-                    <span className="text-xs font-semibold text-signal-green bg-signal-green/10 px-2 py-0.5 rounded text-[10px] uppercase">
-                      {successData.status}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-xs text-slate-500">Marked Time</span>
-                    <span className="text-xs font-semibold text-white">
-                      {new Date(successData.markedAt).toLocaleTimeString()}
-                    </span>
-                  </div>
+              {status === 'scanning' ? (
+                <Webcam
+                  audio={false}
+                  ref={webcamRef}
+                  screenshotFormat="image/jpeg"
+                  videoConstraints={{ facingMode: 'environment' }}
+                  onUserMedia={handleUserMedia}
+                  onUserMediaError={handleUserMediaError}
+                  className="h-full w-full object-cover"
+                  playsInline
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                  <ScanLine size={32} className="text-slate-600" />
                 </div>
               )}
-            </div>
-          )}
 
-          {status === 'error' && (
-            <div className="mt-6 flex flex-col items-center gap-2 rounded-lg border border-signal-red/30 bg-signal-red/10 px-4 py-4 text-center">
-              <XCircle size={22} className="text-signal-red" />
-              <p className="text-sm text-red-300">{message}</p>
+              {status === 'scanning' && (
+                <div className="sweep animate-scanline" style={{ animationDuration: '2.4s' }} />
+              )}
+            </div>
+
+            {cameraError && (
+              <p className="mt-3 text-[11px] text-red-400 text-center leading-relaxed">{cameraError}</p>
+            )}
+
+            {status === 'idle' && (
               <button
                 onClick={startScanning}
-                className="mt-2 bg-signal-red px-4 py-2 text-xs text-white glass-btn"
+                className="mt-5 w-full rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] py-3 text-sm font-medium text-white transition-all duration-200 shadow-lg shadow-indigo-900/40"
               >
-                Try Again
+                Start Scanning
               </button>
-            </div>
-          )}
-        </div>
+            )}
 
-        <div className="mt-6 text-center">
-          <Link
-            to="/student/leaves"
-            className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
-          >
-            <Calendar size={16} />
-            Apply for Leave / On-Duty
-          </Link>
+            {status === 'submitting' && (
+              <p className="mt-5 text-center text-sm text-slate-400 animate-pulse">{message}</p>
+            )}
+
+            {/* Success state */}
+            {status === 'success' && (
+              <div className="mt-5 space-y-3">
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                  <CheckCircle2 size={20} className="text-emerald-400 shrink-0" />
+                  <p className="text-sm text-emerald-400 font-medium">{message}</p>
+                </div>
+
+                {successData && (
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] divide-y divide-white/[0.06] overflow-hidden">
+                    {[
+                      { label: 'Student Name', value: successData.studentName },
+                      { label: 'Roll Number', value: successData.rollNo },
+                      { label: 'Subject', value: successData.subjectName },
+                      { label: 'Room / Session', value: successData.roomName || successData.sessionName },
+                      {
+                        label: 'Status',
+                        value: (
+                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded uppercase tracking-wide">
+                            {successData.status}
+                          </span>
+                        ),
+                      },
+                      {
+                        label: 'Marked At',
+                        value: new Date(successData.markedAt).toLocaleTimeString(),
+                      },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-[11px] text-slate-500">{label}</span>
+                        <span className="text-[12px] font-semibold text-slate-200 text-right max-w-[55%]">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Error state */}
+            {status === 'error' && (
+              <div className="mt-5 flex flex-col items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-4 text-center">
+                <XCircle size={20} className="text-red-400" />
+                <p className="text-sm text-red-300 leading-relaxed">{message}</p>
+                <button
+                  onClick={startScanning}
+                  className="mt-1 rounded-lg bg-red-600 hover:bg-red-500 px-5 py-2 text-xs font-medium text-white transition-all active:scale-95"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Leave link */}
+          <div className="mt-5 text-center">
+            <Link
+              to="/student/leaves"
+              className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors py-2"
+            >
+              <Calendar size={14} />
+              Apply for Leave / On-Duty
+            </Link>
+          </div>
+
         </div>
       </div>
     </div>
